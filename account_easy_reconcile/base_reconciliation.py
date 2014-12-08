@@ -79,10 +79,15 @@ class EasyReconcileBase(orm.AbstractModel):
         return "SELECT %s" % ', '.join(self._base_columns(rec))
 
     def _from(self, rec, *args, **kwargs):
-        return "FROM account_move_line"
+        return ("FROM account_move_line "
+                "LEFT OUTER JOIN account_move_reconcile ON "
+                "(account_move_line.reconcile_partial_id "
+                "= account_move_reconcile.id)"
+                )
 
     def _where(self, rec, *args, **kwargs):
         where = ("WHERE account_move_line.account_id = %s "
+                 "AND COALESCE(account_move_reconcile.type,'') <> 'manual' "
                  "AND account_move_line.reconcile_id IS NULL ")
         # it would be great to use dict for params
         # but as we use _where_calc in _get_filter
@@ -178,7 +183,7 @@ class EasyReconcileBase(orm.AbstractModel):
             cr, uid, rec, lines, rec.date_base_on, context=context)
         rec_ctx = dict(context, date_p=date)
         if below_writeoff:
-            if sum_credit < sum_debit:
+            if sum_credit > sum_debit:
                 writeoff_account_id = rec.account_profit_id.id
             else:
                 writeoff_account_id = rec.account_lost_id.id
@@ -210,10 +215,28 @@ class EasyReconcileBase(orm.AbstractModel):
                     if set(line_ids) == partial_line_ids:
                         return True, False
 
+            # We need to give a writeoff_acc_id
+            # in case we have a multi currency lines
+            # to reconcile.
+            # If amount in currency is equal between
+            # lines to reconcile
+            # it will do a full reconcile instead of a partial reconcile
+            # and make a write-off for exchange
+            if sum_credit > sum_debit:
+                writeoff_account_id = rec.income_exchange_account_id.id
+            else:
+                writeoff_account_id = rec.expense_exchange_account_id.id
+            period_id = self.pool['account.period'].find(
+                cr, uid, dt=date, context=context)[0]
+            if rec.analytic_account_id:
+                rec_ctx['analytic_id'] = rec.analytic_account_id.id
             ml_obj.reconcile_partial(
                 cr, uid,
                 line_ids,
                 type='manual',
+                writeoff_acc_id=writeoff_account_id,
+                writeoff_period_id=period_id,
+                writeoff_journal_id=rec.journal_id.id,
                 context=rec_ctx)
             return True, False
         return False, False

@@ -63,6 +63,11 @@ class EasyReconcileOptions(orm.AbstractModel):
         'analytic_account_id': fields.many2one(
             'account.analytic.account', 'Analytic Account',
             help="Analytic account for the write-off"),
+        'income_exchange_account_id': fields.many2one(
+            'account.account', 'Gain Exchange Rate Account'),
+        'expense_exchange_account_id': fields.many2one(
+            'account.account', 'Loss Exchange Rate Account'),
+
     }
 
     _defaults = {
@@ -162,11 +167,16 @@ class AccountEasyReconcile(orm.Model):
 
     def _last_history(self, cr, uid, ids, name, args, context=None):
         result = {}
-        for history in self.browse(cr, uid, ids, context=context):
-            result[history.id] = False
-            if history.history_ids:
-                # history is sorted by date desc
-                result[history.id] = history.history_ids[0].id
+        # do a search() for retrieving the latest history line,
+        # as a read() will badly split the list of ids with 'date desc'
+        # and return the wrong result.
+        history_obj = self.pool['easy.reconcile.history']
+        for reconcile_id in ids:
+            last_history = history_obj.search(
+                cr, uid, [('easy_reconcile_id', '=', reconcile_id)],
+                limit=1, order='date desc', context=context
+            )
+            result[reconcile_id] = last_history[0] if last_history else False
         return result
 
     _columns = {
@@ -205,6 +215,12 @@ class AccountEasyReconcile(orm.Model):
                                       rec_method.account_profit_id.id),
                 'analytic_account_id': (rec_method.analytic_account_id and
                                         rec_method.analytic_account_id.id),
+                'income_exchange_account_id':
+                (rec_method.income_exchange_account_id and
+                 rec_method.income_exchange_account_id.id),
+                'expense_exchange_account_id':
+                (rec_method.income_exchange_account_id and
+                 rec_method.income_exchange_account_id.id),
                 'journal_id': (rec_method.journal_id and
                                rec_method.journal_id.id),
                 'date_base_on': rec_method.date_base_on,

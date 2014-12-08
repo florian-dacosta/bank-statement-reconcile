@@ -23,7 +23,7 @@ import traceback
 from openerp.tools.translate import _
 import datetime
 from openerp.osv import fields, orm
-from parser import new_bank_statement_parser
+from .parser import new_bank_statement_parser
 from openerp.tools.config import config
 
 
@@ -74,7 +74,6 @@ class AccountStatementProfil(orm.Model):
               statement ID
             :param:    context: global context
         """
-        pass
 
     def write_logs_after_import(self, cr, uid, ids, statement_id, num_lines,
                                 context):
@@ -135,7 +134,7 @@ class AccountStatementProfil(orm.Model):
         """
         vals = {'profile_id': profile_id}
         vals.update(parser.get_st_vals())
-        if not vals.get('balance_start'):
+        if vals.get('balance_start') is None:
             # Get starting balance from journal balance if parser doesn't
             # fill this data, simulating the manual flow
             statement_obj = self.pool['account.bank.statement']

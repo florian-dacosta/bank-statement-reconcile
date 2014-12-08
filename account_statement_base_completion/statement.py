@@ -191,13 +191,7 @@ class AccountStatementCompletionRule(orm.Model):
         res = {}
         inv = self._find_invoice(cr, uid, line, inv_type, context=context)
         if inv:
-            # FIXME use only commercial_partner_id of invoice in 7.1
-            # this is for backward compatibility in 7.0 before
-            # the refactoring of res.partner
-            if hasattr(inv, 'commercial_partner_id'):
-                partner_id = inv.commercial_partner_id.id
-            else:
-                partner_id = inv.partner_id.id
+            partner_id = inv.commercial_partner_id.id
             res = {'partner_id': partner_id,
                    'account_id': inv.account_id.id,
                    'type': inv_type}
@@ -335,7 +329,7 @@ class AccountStatementCompletionRule(orm.Model):
         # to:
         #  http://www.postgresql.org/docs/9.0/static/functions-matching.html
         # in chapter 9.7.3.6. Limits and Compatibility
-        sql = """
+        sql = r"""
         SELECT id FROM (
             SELECT id,
                 regexp_matches(%s,
